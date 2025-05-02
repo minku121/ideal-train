@@ -1,7 +1,7 @@
 import { authOptions } from "@/app/lib/auth";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@/lib/generated/prisma";
+import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 export async function GET(req: Request) {
@@ -24,13 +24,17 @@ export async function GET(req: Request) {
       // Calculate revenue from all orders
       const allOrders = await prisma.order.findMany({
         include: {
-          products: true
+          orderProducts: {
+            include: {
+              product: true
+            }
+          }
         }
       });
       
       const revenue = allOrders.reduce((total, order) => {
-        const orderTotal = order.products.reduce((sum, product) => {
-          return sum + (product.commission || 0);
+        const orderTotal = order.orderProducts.reduce((sum: number, orderProduct) => {
+          return sum + (orderProduct.product.commission || 0);
         }, 0);
         return total + orderTotal;
       }, 0);
@@ -80,7 +84,15 @@ export async function GET(req: Request) {
           where: { managerId: sellerId }
         }),
         prisma.order.count({
-          where: { products: { some: { managerId: sellerId } } }
+          where: {
+            orderProducts: {
+              some: {
+                product: {
+                  managerId: sellerId
+                }
+              }
+            }
+          }
         })
       ]);
       return NextResponse.json({
