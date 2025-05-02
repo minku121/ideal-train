@@ -255,11 +255,12 @@ const config = {
     "db"
   ],
   "activeProvider": "mysql",
+  "postinstall": false,
   "inlineDatasources": {
     "db": {
       "url": {
         "fromEnvVar": "DATABASE_URL",
-        "value": "mysql://avnadmin:AVNS_z_8AyejRhGhp0KVfo3x@mysql-906fb97-aurasoftglow-034b.l.aivencloud.com:24874/defaultdb?ssl-mode=REQUIRED"
+        "value": null
       }
     }
   },
