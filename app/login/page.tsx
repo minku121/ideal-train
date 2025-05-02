@@ -1,10 +1,9 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import React, { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { Eye, EyeOff, Lock, Mail } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -23,27 +22,28 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
-      // In a real app, you would validate credentials with your backend
-      // For demo purposes, we'll use some hardcoded values
-      if (email === "admin@example.com" && password === "password") {
-        localStorage.setItem("user", JSON.stringify({ email, role: "admin" }))
-        router.push("/dashboard")
-      } else if (email === "buyer@example.com" && password === "password") {
-        localStorage.setItem("user", JSON.stringify({ email, role: "buyer" }))
-        router.push("/dashboard")
-      } else if (email === "mediator@example.com" && password === "password") {
-        localStorage.setItem("user", JSON.stringify({ email, role: "mediator" }))
-        router.push("/dashboard")
-      } else if (email === "seller@example.com" && password === "password") {
-        localStorage.setItem("user", JSON.stringify({ email, role: "seller" }))
-        router.push("/dashboard")
-      } else {
-        alert("Invalid credentials. Try admin@example.com / password")
+    const res = await signIn("credentials", {
+      redirect: false,
+      username: email,
+      password: password,
+    })
+
+    if (res?.ok) {
+      // Get the session to access the user's role
+      const sessionRes = await fetch("/api/auth/session");
+      const session = await sessionRes.json();
+      const user = session?.user;
+
+      if (user) {
+        localStorage.setItem("user", JSON.stringify(user));
       }
-      setIsLoading(false)
-    }, 1000)
+
+      router.push("/dashboard");
+    } else {
+      alert("Invalid email or password.")
+    }
+
+    setIsLoading(false)
   }
 
   return (
@@ -108,13 +108,6 @@ export default function LoginPage() {
                 Sign up
               </Link>
             </p>
-            <div className="mt-4 text-center text-xs text-muted-foreground">
-              <p>Demo accounts:</p>
-              <p>admin@example.com / password</p>
-              <p>buyer@example.com / password</p>
-              <p>mediator@example.com / password</p>
-              <p>seller@example.com / password</p>
-            </div>
           </CardFooter>
         </form>
       </Card>

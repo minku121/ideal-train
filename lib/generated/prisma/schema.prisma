@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Brand {
+  id       Int            @id @default(autoincrement())
+  name     String         @unique
+  products Product[]
+  managers BrandManager[]
+  orders   Order[]
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  role      Role     @default(BUYER)
+
+  managedProducts Product[]      @relation("ManagedProducts")
+  buyerOrders     Order[]        @relation("BuyerOrders")
+  managedBrands   BrandManager[]
+}
+
+// Explicit join table for the many-to-many relationship
+model BrandManager {
+  id      Int     @id @default(autoincrement())
+  brandId Int
+  userId  Int
+  brand   Brand   @relation(fields: [brandId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+  orders  Order[]
+
+  @@unique([brandId, userId])
+}
+
+model Order {
+  id          Int      @id @default(autoincrement())
+  orderId     String
+  dateOfOrder DateTime
+  buyerId     Int
+  buyer       User     @relation("BuyerOrders", fields: [buyerId], references: [id])
+
+  brandId Int
+  brand   Brand @relation(fields: [brandId], references: [id])
+
+  brandManagerId Int
+  brandManager   BrandManager @relation(fields: [brandManagerId], references: [id])
+
+  orderProducts OrderProduct[]
+  products      Product[]      @relation("OrderProducts")
+
+  orderProofStatus OrderProofStatus @default(SUBMITTED)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model Product {
+  id            Int            @id @default(autoincrement())
+  name          String
+  brandId       Int
+  brand         Brand          @relation(fields: [brandId], references: [id])
+  dealType      DealType
+  campaignType  CampaignType
+  commission    Float?
+  exchangeNotes String?
+  managerId     Int
+  manager       User           @relation("ManagedProducts", fields: [managerId], references: [id])
+  orderProducts OrderProduct[]
+  orders        Order[]        @relation("OrderProducts")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model OrderProduct {
+  orderId   Int
+  productId Int
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@id([orderId, productId])
+}
+
+enum Role {
+  BUYER
+  MEDIATOR
+  SELLER
+  ADMIN
+}
+
+enum DealType {
+  ORIGINAL
+  EMPTY
+  EXCHANGE
+}
+
+enum CampaignType {
+  RATING_DEAL
+  REVIEW_DEAL
+  ORDER_ONLY_DEAL
+}
+
+enum OrderProofStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}

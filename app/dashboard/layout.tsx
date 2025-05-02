@@ -3,6 +3,8 @@
 import type React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { BarChart3, Home, LayoutDashboard, LogOut, Package, Settings, ShoppingCart, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getSession } from "next-auth/react";
 
 import {
   Sidebar,
@@ -21,18 +23,50 @@ import {
 import { DashboardAuthGuard } from "@/components/DashboardAuthGuard";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
+interface User {
+  name?: string;
+  email: string;
+  role: string;
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSession = async () => {
+      setLoading(true);
+      try {
+        const session = await getSession();
+        if (session?.user) {
+          setUser({
+            name: session.user.name || undefined,
+            email: session.user.email || '',
+            role: session.user.role || ''
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch session:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSession();
+  }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
     router.push("/login");
   };
 
+  // Loading state removed as requested
+
+  if (!user) return null;
+
   return (
     <DashboardAuthGuard>
-      {(user) => (
+      {() => (
         <SidebarProvider>
           <div className="flex h-screen w-screen">
             <Sidebar>
@@ -66,19 +100,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       </SidebarMenuItem>
 
                       {/* Buyer specific menu items */}
-                      {user.role === "buyer" && (
-                        <SidebarMenuItem>
-                          <SidebarMenuButton asChild isActive={pathname === "/dashboard/orders"}>
-                            <a href="/dashboard/orders">
-                              <ShoppingCart />
-                              <span>My Orders</span>
-                            </a>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      )}
+                      {user.role === "BUYER" && (
+  <>
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={pathname === "/dashboard/orders"}>
+        <a href="/dashboard/orders">
+          <ShoppingCart />
+          <span>My Orders</span>
+        </a>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={pathname === "/dashboard/add-order"}>
+        <a href="/dashboard/add-order">
+          <Package />
+          <span>Add Order</span>
+        </a>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={pathname === "/dashboard/pending-orders"}>
+        <a href="/dashboard/pending-orders">
+          <BarChart3 />
+          <span>Pending Orders</span>
+        </a>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  </>
+)}
 
                       {/* Seller specific menu items */}
-                      {user.role === "seller" && (
+                      {user.role === "SELLER" && (
                         <>
                           <SidebarMenuItem>
                             <SidebarMenuButton asChild isActive={pathname === "/dashboard/products"}>
@@ -100,7 +152,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       )}
 
                       {/* Mediator specific menu items */}
-                      {user.role === "mediator" && (
+                      {user.role === "MEDIATOR" && (
                         <SidebarMenuItem>
                           <SidebarMenuButton asChild isActive={pathname === "/dashboard/disputes"}>
                             <a href="/dashboard/disputes">
@@ -112,7 +164,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       )}
 
                       {/* Admin specific menu items */}
-                      {user.role === "admin" && (
+                      {user.role === "ADMIN" && (
                         <>
                           <SidebarMenuItem>
                             <SidebarMenuButton asChild isActive={pathname === "/dashboard/users"}>

@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "lib/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Brand {
+  id            Int            @id @default(autoincrement())
+  name          String         @unique
+  products      Product[]
+  brandManagers BrandManager[] // One-to-many relationship with BrandManager
+  orders        Order[] // One-to-many relationship with Order
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  role      Role     @default(BUYER)
+
+  // Relationships
+  brandManagers BrandManager[] // One-to-many relationship with BrandManager
+  buyerOrders   Order[]        @relation("BuyerOrders")
+}
+
+// Explicit join model for Brand and Manager relationship
+model BrandManager {
+  id      Int @id @default(autoincrement())
+  brandId Int
+  userId  Int
+
+  // Relations
+  brand    Brand     @relation(fields: [brandId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+  products Product[]
+  orders   Order[] // One-to-many relationship with Order
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Unique constraint to prevent duplicate brand-manager pairs
+  @@unique([brandId, userId])
+}
+
+model Order {
+  id             Int      @id @default(autoincrement())
+  orderId        String   @unique
+  dateOfOrder    DateTime
+  buyerId        Int
+  brandId        Int
+  brandManagerId Int
+
+  // Relations
+  buyer        User         @relation("BuyerOrders", fields: [buyerId], references: [id])
+  brand        Brand        @relation(fields: [brandId], references: [id])
+  brandManager BrandManager @relation(fields: [brandManagerId], references: [id])
+
+  // Many-to-many relationship with Product using explicit join model
+  orderProducts OrderProduct[]
+
+  // Order metadata
+  dealType         DealType? // Optional order-level deal type
+  campaignType     CampaignType? // Optional order-level campaign type
+  commission       Float? // Optional commission amount
+  exchangeNotes    String? // Notes for exchange orders
+  orderProofStatus OrderProofStatus @default(SUBMITTED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id        Int    @id @default(autoincrement())
+  name      String
+  brandId   Int
+  managerId Int    @default(1)
+
+  // Relations
+  brand   Brand        @relation(fields: [brandId], references: [id])
+  manager BrandManager @relation(fields: [managerId], references: [id])
+
+  // Many-to-many relationship with Order using explicit join model
+  orderProducts OrderProduct[]
+
+  // Product metadata
+  dealType      DealType
+  campaignType  CampaignType
+  commission    Float?
+  exchangeNotes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Explicit join model for Order-Product many-to-many relationship
+model OrderProduct {
+  id        Int @id @default(autoincrement())
+  orderId   Int
+  productId Int
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  // Ensure each product appears only once per order
+  @@unique([orderId, productId])
+}
+
+enum Role {
+  BUYER
+  MEDIATOR
+  SELLER
+  ADMIN
+}
+
+enum DealType {
+  ORIGINAL
+  EMPTY
+  EXCHANGE
+}
+
+enum CampaignType {
+  RATING_DEAL
+  REVIEW_DEAL
+  ORDER_ONLY_DEAL
+}
+
+enum OrderProofStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
