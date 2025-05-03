@@ -43,7 +43,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           ) : session?.user ? (
             <>
-              <Sidebar>
+              <Sidebar collapsible="icon">
                 <SidebarHeader>
                   <SidebarMenu>
                     <SidebarMenuItem>
@@ -195,30 +195,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </SidebarGroupContent>
                   </SidebarGroup>
                 </SidebarContent>
-                <SidebarFooter className="p-4">
-                  <div className="grid gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex w-full justify-between">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-medium">{session.user.name || session.user.email}</span>
-                          <span className="text-xs text-muted-foreground">{session.user.email}</span>
-                        </div>
+                <SidebarFooter className="p-5 group-data-[collapsible=icon]:p-2">
+                  <div className="grid gap-4 max-w-full">
+                    <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
+                      <div className="flex flex-col gap-1 group-data-[collapsible=icon]:hidden">
+                        <span className="text-sm font-medium">{session.user.name || session.user.email}</span>
+                        <span className="text-xs text-muted-foreground">{session.user.email}</span>
+                      </div>
+                      <div className="group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
                         <ThemeToggle />
                       </div>
                     </div>
                     <button
-                      className="flex w-full items-center gap-2 rounded-lg bg-muted/50 px-4 py-2 text-sm font-medium hover:bg-muted"
+                      className="flex w-full items-center gap-3 rounded-lg bg-muted/50 px-5 py-3 text-sm font-medium hover:bg-muted group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-2"
                       onClick={handleLogout}
                     >
-                      <LogOut className="size-4" />
-                      <span>Logout</span>
+                      <LogOut className="size-5" />
+                      <span className="group-data-[collapsible=icon]:hidden">Logout</span>
                     </button>
                   </div>
                 </SidebarFooter>
-                <SidebarTrigger />
               </Sidebar>
-              <main className="h-full w-full overflow-auto">
-                <div className="container mx-auto py-6">
+              <main className="h-full w-full overflow-auto pl-0 md:pl-6">
+                <div className="container px-4 md:px-8 py-4 md:py-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <SidebarTrigger className="md:mr-4" />
+                  </div>
                   {children}
                 </div>
               </main>
