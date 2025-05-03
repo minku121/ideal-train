@@ -6,16 +6,17 @@ type LoaderProps = {
   size?: "sm" | "md" | "lg";
   text?: string;
   fullScreen?: boolean;
+  className?: string;
 };
 
-export function Loader({ size = "md", text = "Loading...", fullScreen = false }: LoaderProps) {
+export function Loader({ size = "md", text = "Loading...", fullScreen = false, className = "" }: LoaderProps) {
   const sizeClasses = {
     sm: "h-6 w-6 border-2",
     md: "h-10 w-10 border-2",
     lg: "h-16 w-16 border-3",
   };
 
-  const spinnerClass = `animate-spin rounded-full ${sizeClasses[size]} border-t-blue-600 border-blue-200`;
+  const spinnerClass = `animate-spin rounded-full ${sizeClasses[size]} border-t-blue-600 border-blue-200 ${className}`;
   
   const content = (
     <div className="flex flex-col items-center justify-center gap-3">

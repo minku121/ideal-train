@@ -4,13 +4,23 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { Loader } from "@/components/ui/loader";
+import Image from "next/image";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { ImageIcon } from "lucide-react";
 
 type Product = {
+  id: number;
   name: string;
 };
 
 type OrderProduct = {
   product: Product;
+};
+
+type OrderScreenshot = {
+  productId: number;
+  screenshotUrl: string;
 };
 
 type Order = {
@@ -22,6 +32,7 @@ type Order = {
   brand: { name: string };
   brandManager: { user: { name: string } };
   orderProducts: OrderProduct[];
+  orderScreenshots: OrderScreenshot[];
 };
 
 type PaginationInfo = {
@@ -103,6 +114,11 @@ export default function OrdersPage() {
     }
   };
 
+  // Helper to find screenshot for a specific product
+  const getScreenshotForProduct = (order: Order, productId: number) => {
+    return order.orderScreenshots.find(screenshot => screenshot.productId === productId)?.screenshotUrl;
+  };
+
   if (loading && orders.length === 0) {
     return (
       <div className="p-6">
@@ -165,6 +181,7 @@ export default function OrdersPage() {
                 <th className="py-3 px-4 text-left">Brand</th>
                 <th className="py-3 px-4 text-left">Manager</th>
                 <th className="py-3 px-4 text-left">Products</th>
+                <th className="py-3 px-4 text-left">Screenshots</th>
                 <th className="py-3 px-4 text-left">Status</th>
               </tr>
             </thead>
@@ -186,6 +203,44 @@ export default function OrdersPage() {
                         <li key={idx}>{op.product.name}</li>
                       ))}
                     </ul>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex flex-wrap gap-2">
+                      {order.orderProducts.map((op, idx) => {
+                        const screenshotUrl = getScreenshotForProduct(order, op.product.id);
+                        return (
+                          <div key={idx} className="relative">
+                            {screenshotUrl ? (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="sm" className="flex items-center space-x-1">
+                                    <ImageIcon className="h-4 w-4" />
+                                    <span>View</span>
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-md">
+                                  <DialogTitle className="sr-only">
+                                    Screenshot for {op.product.name}
+                                  </DialogTitle>
+                                  <div className="relative w-full h-[400px]">
+                                    <Image 
+                                      src={screenshotUrl} 
+                                      alt={`Screenshot for ${op.product.name}`} 
+                                      fill 
+                                      style={{ objectFit: 'contain' }} 
+                                      unoptimized
+                                    />
+                                  </div>
+                                  <p className="text-center mt-2">{op.product.name}</p>
+                                </DialogContent>
+                              </Dialog>
+                            ) : (
+                              <span className="text-gray-400 text-xs">No image</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </td>
                   <td className="py-3 px-4">
                     <span

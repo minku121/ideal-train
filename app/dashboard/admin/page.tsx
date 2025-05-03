@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { BarChart3, Package, ShoppingCart, Users } from "lucide-react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Loader } from "@/components/ui/loader"
 
 interface User {
   name?: string
@@ -14,27 +18,33 @@ interface User {
 
 export default function AdminDashboardPage() {
   const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
+  const { data: session, status } = useSession()
   const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
     setIsClient(true)
-    const storedUser = localStorage.getItem("user")
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser)
-      setUser(parsedUser)
-
-      // Redirect if not admin
-      if (parsedUser.role !== "admin") {
-        router.push("/dashboard")
-      }
-    } else {
-      router.push("/login")
+    
+    // Check session status
+    if (status === "loading") return;
+    
+    // Redirect if not admin
+    if (!session?.user || session.user.role !== "ADMIN") {
+      router.push("/dashboard")
     }
-  }, [router])
+  }, [router, session, status])
 
-  if (!isClient || !user) {
+  if (!isClient || status === "loading") {
+    return <Loader fullScreen text="Loading admin dashboard..." />
+  }
+
+  if (!session?.user) {
     return null
+  }
+
+  const user = {
+    name: session.user.name,
+    email: session.user.email || "",
+    role: session.user.role || ""
   }
 
   return (

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { toast } from "sonner"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,33 +18,33 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError("")
 
-    const res = await signIn("credentials", {
-      redirect: false,
-      username: email,
-      password: password,
-    })
+    try {
+      const res = await signIn("credentials", {
+        redirect: false,
+        username: email,
+        password: password,
+      })
 
-    if (res?.ok) {
-      // Get the session to access the user's role
-      const sessionRes = await fetch("/api/auth/session");
-      const session = await sessionRes.json();
-      const user = session?.user;
-
-      if (user) {
-        localStorage.setItem("user", JSON.stringify(user));
+      if (res?.ok) {
+        router.push("/dashboard")
+      } else {
+        setError("Invalid email or password")
+        toast.error("Login failed: Invalid email or password")
       }
-
-      router.push("/dashboard");
-    } else {
-      alert("Invalid email or password.")
+    } catch (err) {
+      setError("An error occurred during login")
+      toast.error("An error occurred during login")
+      console.error(err)
+    } finally {
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
   }
 
   return (

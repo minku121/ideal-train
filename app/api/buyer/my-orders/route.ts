@@ -44,9 +44,16 @@ export async function GET(req: NextRequest) {
           include: {
             product: {
               select: {
-                name: true
+                name: true,
+                id: true
               }
             }
+          }
+        },
+        orderScreenshots: {
+          select: {
+            productId: true,
+            screenshotUrl: true
           }
         }
       },

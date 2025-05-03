@@ -1,15 +1,23 @@
 "use client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 export default function DisputesPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
+  
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("user") || '{}');
-    if (!user || user.role !== "MEDIATOR") {
+    if (status === "loading") return;
+    
+    if (!session?.user || session.user.role !== "MEDIATOR") {
       router.replace("/dashboard");
     }
-  }, [router]);
+  }, [router, session, status]);
+
+  if (status === "loading") {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div>

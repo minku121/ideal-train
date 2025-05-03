@@ -1,47 +1,29 @@
 'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-
-interface User {
-  name?: string;
-  email: string;
-  role: string;
-}
+import { ReactNode } from "react";
+import { useSession } from "next-auth/react";
+import { Loader } from "@/components/ui/loader";
 
 interface DashboardAuthGuardProps {
-  children: (user: User) => React.ReactNode;
+  children: ReactNode;
 }
 
 export function DashboardAuthGuard({ children }: DashboardAuthGuardProps) {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [ready, setReady] = useState(false);
+  const { status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      // This will handle redirect to login if not authenticated
+      window.location.href = "/login";
+    },
+  });
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    } else {
-      router.push("/login");
-    }
-    setReady(true);
-  }, [router]);
-
-  if (!ready) {
+  if (status === "loading") {
     return (
       <div className="flex h-screen w-full items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600 dark:text-gray-300 font-medium">Loading dashboard...</p>
-        </div>
+        <Loader size="lg" text="Loading..." />
       </div>
     );
   }
 
-  if (!user) {
-    return null; // Redirecting, don't render anything
-  }
-
-  return <>{children(user)}</>;
+  return <>{children}</>;
 }

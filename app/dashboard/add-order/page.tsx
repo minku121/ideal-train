@@ -8,6 +8,10 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import Image from "next/image";
+import { Loader2 } from "lucide-react";
 
 // These are just for fallback UI, real data comes from API
 const CAMPAIGN_TYPES = [
@@ -95,6 +99,16 @@ async function addOrderApi(payload: any) {
   return result;
 }
 
+// Helper to convert file to base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+};
+
 export default function AddOrderPage() {
   const router = useRouter();
   const [submitted, setSubmitted] = useState(false);
@@ -109,6 +123,10 @@ export default function AddOrderPage() {
   const [brandsLoading, setBrandsLoading] = useState(false);
   const [managersLoading, setManagersLoading] = useState(false);
   const [productsLoading, setProductsLoading] = useState(false);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
+  const [overallProgress, setOverallProgress] = useState(0);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user") || '{}');
@@ -171,7 +189,7 @@ export default function AddOrderPage() {
       order_id: "",
       date_of_order: todayDate,
       brandId: "",
-      products: [{ name: "" }],
+      products: [{ name: "", screenshot: null }],
       deal_type: "ORIGINAL",
       commission: "",
       exchange_product: "",
@@ -179,6 +197,57 @@ export default function AddOrderPage() {
       managerId: "",
     },
   });
+
+  // Preview state for screenshots
+  const [screenshotPreviews, setScreenshotPreviews] = useState<string[]>([]);
+
+  // Update screenshot previews when files change
+  const handleFileChange = async (index: number, files: FileList | null) => {
+    if (files && files.length > 0) {
+      try {
+        // Start with 0% progress when file is selected
+        const newProgress = { ...uploadProgress };
+        newProgress[index] = 0;
+        setUploadProgress(newProgress);
+        
+        // Simulate upload progress (in real implementation, this would come from Cloudinary's SDK)
+        const progressInterval = setInterval(() => {
+          setUploadProgress(prev => {
+            const newProgress = { ...prev };
+            if (newProgress[index] < 90) {
+              newProgress[index] += 10;
+            }
+            return newProgress;
+          });
+        }, 300);
+        
+        const base64 = await fileToBase64(files[0]);
+        
+        // Create a copy of the current previews array
+        const newPreviews = [...screenshotPreviews];
+        // Update the preview at the specific index
+        newPreviews[index] = base64;
+        setScreenshotPreviews(newPreviews);
+        
+        // Complete the progress
+        setUploadProgress(prev => {
+          const newProgress = { ...prev };
+          newProgress[index] = 100;
+          return newProgress;
+        });
+        
+        clearInterval(progressInterval);
+      } catch (error) {
+        console.error("Error converting file to base64:", error);
+        // Reset progress on error
+        setUploadProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[index];
+          return newProgress;
+        });
+      }
+    }
+  };
 
   // Ensure date_of_order is always today (in case of rerender)
   useEffect(() => {
@@ -208,61 +277,120 @@ export default function AddOrderPage() {
 
   const onSubmit = async (data: any) => {
     setError(null);
-
-    // Compose payload according to schema.prisma and API expectations
-    // - order_id: string
-    // - date_of_order: string (date)
-    // - brandId: number
-    // - managerId: number
-    // - productIds: number[]
-    // - deal_type: DealType (enum, uppercase)
-    // - campaign_type: CampaignType (enum, uppercase, underscores)
-    // - commission: float (optional)
-    // - exchange_product: string (optional, for EXCHANGE)
-    const user = JSON.parse(localStorage.getItem("user") || '{}');
-    if (!user || !user.id) {
-      setError("User not authenticated");
-      return;
-    }
-
-    // Find brandId and managerId
-    let brandId = data.brandId;
-    let managerId = data.managerId;
-
-    // If user selected from dropdown, these are numbers
-    if (!brandId && selectedBrand) brandId = selectedBrand;
-    if (!managerId && selectedManager) managerId = selectedManager;
-
-    // If still not found, try to resolve from brands/managers arrays
-    if (!brandId && data.brandId) brandId = getBrandIdByName(data.brandId);
-    if (!managerId && data.managerId) managerId = getManagerIdByName(data.managerId);
-
-    // Compose productIds array by matching selected product names to their IDs
-    const productIds = (data.products || [])
-      .map((p: any) => {
-        const found = products.find(prod => prod.name === p.name);
-        return found ? found.id : null;
-      })
-      .filter((id: number | null) => id !== null);
-
-    // Compose payload
-    const payload = {
-      order_id: data.order_id,
-      date_of_order: todayDate, // Always use today's date
-      brandId: Number(brandId),
-      managerId: Number(managerId),
-      productIds, // <-- send productIds instead of products
-      deal_type: (data.deal_type || "ORIGINAL").toUpperCase(),
-      campaign_type: (data.campaign_type || "RATING_DEAL").toUpperCase().replace(/ /g, "_"),
-      commission: data.commission ? String(data.commission) : undefined,
-      exchange_product: data.exchange_product || undefined,
-    };
-
+    setSubmitting(true);
+    setOverallProgress(10); // Start overall progress at 10%
+    
     try {
-      await addOrderApi(payload);
+      // Check user authentication
+      const user = JSON.parse(localStorage.getItem("user") || '{}');
+      if (!user || !user.id) {
+        setError("User not authenticated");
+        setSubmitting(false);
+        return;
+      }
+      
+      // Find brandId and managerId
+      let brandId = data.brandId;
+      let managerId = data.managerId;
+
+      // If user selected from dropdown, these are numbers
+      if (!brandId && selectedBrand) brandId = selectedBrand;
+      if (!managerId && selectedManager) managerId = selectedManager;
+
+      // If still not found, try to resolve from brands/managers arrays
+      if (!brandId && data.brandId) brandId = getBrandIdByName(data.brandId);
+      if (!managerId && data.managerId) managerId = getManagerIdByName(data.managerId);
+
+      // Prepare screenshots array
+      const screenshots = [];
+      const formData = new FormData();
+
+      // Compose productIds array and collect screenshots
+      const productIds = [];
+      for (let i = 0; i < (data.products || []).length; i++) {
+        const p = data.products[i];
+        const found = products.find(prod => prod.name === p.name);
+        
+        if (found) {
+          productIds.push(found.id);
+          
+          // Add screenshot if available
+          if (p.screenshot && p.screenshot[0]) {
+            screenshots.push({
+              productId: found.id,
+              file: p.screenshot[0]
+            });
+            
+            // Update progress state for this upload
+            setUploadProgress(prev => ({
+              ...prev,
+              [i]: 20 // Start at 20% to indicate processing has begun
+            }));
+            
+            // Add to FormData for upload
+            formData.append(`screenshots[${found.id}]`, p.screenshot[0]);
+          }
+        }
+      }
+
+      // Add other form data to FormData
+      formData.append("order_id", data.order_id);
+      formData.append("date_of_order", todayDate);
+      formData.append("brandId", String(brandId));
+      formData.append("managerId", String(managerId));
+      formData.append("productIds", JSON.stringify(productIds));
+      formData.append("deal_type", (data.deal_type || "ORIGINAL").toUpperCase());
+      formData.append("campaign_type", (data.campaign_type || "RATING_DEAL").toUpperCase().replace(/ /g, "_"));
+      if (data.commission) formData.append("commission", String(data.commission));
+      if (data.exchange_product) formData.append("exchange_product", data.exchange_product);
+
+      // Update progress for all uploads to indicate upload started
+      screenshots.forEach((screenshot, index) => {
+        setUploadProgress(prev => ({
+          ...prev,
+          [index]: 40 // Upload has begun
+        }));
+      });
+      
+      // Use fetch with FormData for multipart upload
+      const response = await fetch("/api/buyer/add-order", {
+        method: "POST",
+        body: formData,
+      });
+      
+      // Update progress for all uploads to indicate server processing
+      screenshots.forEach((screenshot, index) => {
+        setUploadProgress(prev => ({
+          ...prev,
+          [index]: 90 // Server is processing
+        }));
+      });
+      
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Failed to submit order");
+      
+      // Update progress to complete
+      screenshots.forEach((screenshot, index) => {
+        setUploadProgress(prev => ({
+          ...prev,
+          [index]: 100 // Complete
+        }));
+      });
+      
+      // Store screenshot URLs from response if available
+      if (result.screenshotUrls) {
+        // You could store these in local storage or state if needed for later display
+        localStorage.setItem(`order_${result.order.id}_screenshots`, JSON.stringify(result.screenshotUrls));
+      }
+      
       setSubmitted(true);
+      
+      // Add success message or redirect
+      // router.push(`/dashboard/orders/${result.order.id}`);
     } catch (err: any) {
       setError(err?.message || "Failed to submit order");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -277,7 +405,35 @@ export default function AddOrderPage() {
             <TabsTrigger value="rejected">Rejected</TabsTrigger>
           </TabsList>
           <TabsContent value="pending">
-            <div className="mt-4">Your order proof is pending review.</div>
+            <div className="mt-4">
+              <div className="mb-4">Your order proof is pending review.</div>
+              
+              {/* Display uploaded screenshots */}
+              <div className="mt-6">
+                <h2 className="text-lg font-semibold mb-2">Order Screenshots</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {screenshotPreviews.filter(url => url).map((url, index) => (
+                    <div key={index} className="relative border rounded-md overflow-hidden">
+                      <div className="relative w-full h-48">
+                        <Image 
+                          src={url}
+                          alt={`Order screenshot ${index + 1}`}
+                          fill
+                          style={{ objectFit: 'contain' }}
+                        />
+                      </div>
+                      <div className="p-2 bg-gray-50 text-xs">
+                        Screenshot {index + 1}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {screenshotPreviews.filter(url => url).length === 0 && (
+                    <div className="text-gray-500 italic">No screenshots submitted</div>
+                  )}
+                </div>
+              </div>
+            </div>
           </TabsContent>
           <TabsContent value="approved">
             <div className="mt-4">Your order proof has been approved.</div>
@@ -310,6 +466,24 @@ export default function AddOrderPage() {
           }
         />
       )}
+      
+      {/* Fullscreen Order Submission Loader */}
+      {submitting && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-card p-6 rounded-lg shadow-lg flex flex-col items-center space-y-4 max-w-md w-full">
+            <Loader2 className="h-10 w-10 text-primary animate-spin" />
+            <h3 className="text-xl font-medium">Submitting Order</h3>
+            <p className="text-muted-foreground text-center">
+              {overallProgress < 40 && "Preparing your order..."}
+              {overallProgress >= 40 && overallProgress < 70 && "Uploading screenshots to Cloudinary..."}
+              {overallProgress >= 70 && overallProgress < 90 && "Processing your order..."}
+              {overallProgress >= 90 && "Almost done!"}
+            </p>
+            <Progress value={overallProgress} className="w-full" />
+          </div>
+        </div>
+      )}
+      
       <h1 className="text-2xl font-bold mb-4">Add Order</h1>
       <form
         onSubmit={handleSubmit(onSubmit)}
@@ -405,42 +579,107 @@ export default function AddOrderPage() {
         <div>
           <label className="block mb-1 font-medium">Product Order(s)</label>
           {fields.map((item, idx) => (
-            <div key={item.id} className="flex gap-2 mb-2">
-              <Controller
-                name={`products.${idx}.name`}
-                control={control}
-                rules={{ required: true }}
-                render={({ field }) => (
-                  <Select
-                    value={field.value || ""}
-                    onValueChange={field.onChange}
-                    disabled={products.length === 0 || productsLoading || isAnyLoading}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={productsLoading ? "Loading products..." : "Select Product"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {productsLoading ? (
-                        <div className="px-4 py-2 text-gray-500">Loading products...</div>
-                      ) : products.length === 0 ? (
-                        <div className="px-4 py-2 text-gray-500">No products available</div>
-                      ) : (
-                        products.map((p) => (
-                          <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+            <div key={item.id} className="flex flex-col gap-2 mb-6 border p-4 rounded-md">
+              <div className="flex gap-2 mb-2">
+                <Controller
+                  name={`products.${idx}.name`}
+                  control={control}
+                  rules={{ required: true }}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value || ""}
+                      onValueChange={field.onChange}
+                      disabled={products.length === 0 || productsLoading || isAnyLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={productsLoading ? "Loading products..." : "Select Product"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {productsLoading ? (
+                          <div className="px-4 py-2 text-gray-500">Loading products...</div>
+                        ) : products.length === 0 ? (
+                          <div className="px-4 py-2 text-gray-500">No products available</div>
+                        ) : (
+                          products.map((p) => (
+                            <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {fields.length > 1 && (
+                  <Button type="button" variant="destructive" onClick={() => remove(idx)} disabled={isAnyLoading}>
+                    Remove
+                  </Button>
                 )}
-              />
-              {fields.length > 1 && (
-                <Button type="button" variant="destructive" onClick={() => remove(idx)} disabled={isAnyLoading}>
-                  Remove
-                </Button>
-              )}
+              </div>
+              
+              {/* Screenshot upload for this product */}
+              <div className="mt-2">
+                <Label htmlFor={`screenshot-${idx}`} className="block mb-1 font-medium">
+                  Order Screenshot
+                </Label>
+                <Input
+                  id={`screenshot-${idx}`}
+                  type="file"
+                  accept="image/*"
+                  disabled={isAnyLoading}
+                  {...register(`products.${idx}.screenshot`)}
+                  onChange={(e) => handleFileChange(idx, e.target.files)}
+                />
+                
+                {/* Upload progress bar */}
+                {uploadProgress[idx] !== undefined && uploadProgress[idx] < 100 && (
+                  <div className="mt-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span>Uploading...</span>
+                      <span>{uploadProgress[idx]}%</span>
+                    </div>
+                    <Progress value={uploadProgress[idx]} className="w-full h-2" />
+                  </div>
+                )}
+                
+                {/* Preview area */}
+                {screenshotPreviews[idx] && (
+                  <div className="mt-2 relative w-full h-40 bg-gray-100 rounded-md overflow-hidden">
+                    <Image 
+                      src={screenshotPreviews[idx]} 
+                      alt="Order screenshot preview" 
+                      fill 
+                      style={{ objectFit: 'contain' }} 
+                    />
+                    <Button 
+                      type="button" 
+                      variant="destructive" 
+                      size="sm"
+                      className="absolute top-2 right-2 z-10"
+                      onClick={() => {
+                        const newPreviews = [...screenshotPreviews];
+                        newPreviews[idx] = '';
+                        setScreenshotPreviews(newPreviews);
+                        
+                        // Also clear the file input and progress
+                        setValue(`products.${idx}.screenshot`, null);
+                        setUploadProgress(prev => {
+                          const newProgress = {...prev};
+                          delete newProgress[idx];
+                          return newProgress;
+                        });
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
-          <Button type="button" variant="secondary" onClick={() => append({ name: "" })} disabled={isAnyLoading}>
+          <Button type="button" variant="secondary" onClick={() => {
+            append({ name: "", screenshot: null });
+            // Extend screenshot previews array
+            setScreenshotPreviews([...screenshotPreviews, '']);
+          }} disabled={isAnyLoading}>
             + Add More Product
           </Button>
         </div>
@@ -493,7 +732,20 @@ export default function AddOrderPage() {
           />
         </div>
         {error && <div className="text-red-600 mt-2">{error}</div>}
-        <Button type="submit" className="w-full mt-4" disabled={isAnyLoading}>Submit Order</Button>
+        <Button 
+          type="submit" 
+          className="w-full mt-4" 
+          disabled={isAnyLoading || submitting}
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Submitting...
+            </>
+          ) : (
+            "Submit Order"
+          )}
+        </Button>
       </form>
     </div>
   );

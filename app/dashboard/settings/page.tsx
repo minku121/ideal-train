@@ -1,15 +1,23 @@
 "use client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
+  
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("user") || '{}');
-    if (!user) {
+    if (status === "loading") return;
+    
+    if (!session?.user) {
       router.replace("/dashboard");
     }
-  }, [router]);
+  }, [router, session, status]);
+
+  if (status === "loading") {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div>
