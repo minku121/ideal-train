@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { CheckCircle, Filter, ImageIcon, Search, XCircle } from "lucide-react";
+import { CheckCircle, Filter, ImageIcon, Search, XCircle, Info } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
@@ -25,10 +25,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { OrderDetailsDialog } from "@/app/components";
 
 type Product = {
   id: number;
   name: string;
+  dealType: string;
+  campaignType: string;
 };
 
 type OrderProduct = {
@@ -46,12 +49,26 @@ type Order = {
   dateOfOrder: string;
   createdAt: string;
   orderProofStatus: string;
+  exchangeNotes?: string;
+  upiId?: string;
   brand: { name: string };
-  buyer: { name: string; email: string };
-  brandManager: { user: { name: string; email: string } };
+  buyer: { 
+    name: string; 
+    email: string;
+    role?: string;
+    createdAt?: string;
+    settings?: {
+      upiId?: string;
+    }
+  };
+  brandManager: { 
+    user: { 
+      name: string; 
+      email: string 
+    } 
+  };
   orderProducts: OrderProduct[];
   orderScreenshots: OrderScreenshot[];
-  exchangeNotes?: string;
 };
 
 type PaginationInfo = {
@@ -87,6 +104,7 @@ export default function AdminOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [rejectionNote, setRejectionNote] = useState("");
   const [processingOrderId, setProcessingOrderId] = useState<number | null>(null);
+  const [viewOrderDetails, setViewOrderDetails] = useState<Order | null>(null);
 
   // Fetch admin access check
   useEffect(() => {
@@ -196,7 +214,7 @@ export default function AdminOrdersPage() {
   };
 
   const handleFilterChange = (key: string, value: string) => {
-    if (value === "") {
+    if (value === "ALL") {
       const newFilters = { ...filters };
       delete newFilters[key as keyof FilterOptions];
       setFilters(newFilters);
@@ -290,6 +308,10 @@ export default function AdminOrdersPage() {
     }
   };
 
+  const handleViewDetails = (order: Order) => {
+    setViewOrderDetails(order);
+  };
+
   if (loading && orders.length === 0) {
     return (
       <div className="p-6">
@@ -334,7 +356,7 @@ export default function AdminOrdersPage() {
                     <SelectValue placeholder="All Brands" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Brands</SelectItem>
+                    <SelectItem value="ALL">All Brands</SelectItem>
                     {brands.map(brand => (
                       <SelectItem key={brand.id} value={brand.id.toString()}>
                         {brand.name}
@@ -354,7 +376,7 @@ export default function AdminOrdersPage() {
                     <SelectValue placeholder="All Buyers" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Buyers</SelectItem>
+                    <SelectItem value="ALL">All Buyers</SelectItem>
                     {buyers.map(buyer => (
                       <SelectItem key={buyer.id} value={buyer.id.toString()}>
                         {buyer.name}
@@ -439,6 +461,11 @@ export default function AdminOrdersPage() {
                     <div>
                       <div>{order.buyer.name}</div>
                       <div className="text-xs text-gray-500">{order.buyer.email}</div>
+                      {order.buyer.settings?.upiId && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          <span className="font-medium">UPI ID:</span> {order.buyer.settings.upiId}
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td className="py-3 px-4">
@@ -510,38 +537,40 @@ export default function AdminOrdersPage() {
                     )}
                   </td>
                   <td className="py-3 px-4">
-                    {order.orderProofStatus === "SUBMITTED" && (
-                      <div className="flex space-x-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-                          onClick={() => handleApprove(order)}
-                          disabled={processingOrderId === order.id}
-                        >
-                          {processingOrderId === order.id ? (
-                            <Loader size="sm" className="h-4 w-4" />
-                          ) : (
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center space-x-1"
+                        onClick={() => handleViewDetails(order)}
+                      >
+                        <Info className="h-4 w-4" />
+                        <span>Details</span>
+                      </Button>
+                    
+                      {order.orderProofStatus === "SUBMITTED" && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-green-600 border-green-200 hover:bg-green-50"
+                            onClick={() => handleApprove(order)}
+                          >
                             <CheckCircle className="h-4 w-4 mr-1" />
-                          )}
-                          <span>Approve</span>
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
-                          onClick={() => handleReject(order)}
-                          disabled={processingOrderId === order.id}
-                        >
-                          {processingOrderId === order.id ? (
-                            <Loader size="sm" className="h-4 w-4" />
-                          ) : (
+                            Approve
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 border-red-200 hover:bg-red-50"
+                            onClick={() => handleReject(order)}
+                          >
                             <XCircle className="h-4 w-4 mr-1" />
-                          )}
-                          <span>Reject</span>
-                        </Button>
-                      </div>
-                    )}
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -621,6 +650,13 @@ export default function AdminOrdersPage() {
           </DialogContent>
         </Dialog>
       )}
+      
+      {/* Order details dialog */}
+      <OrderDetailsDialog 
+        order={viewOrderDetails} 
+        open={!!viewOrderDetails} 
+        onOpenChange={(open: boolean) => !open && setViewOrderDetails(null)} 
+      />
     </div>
   );
 } 

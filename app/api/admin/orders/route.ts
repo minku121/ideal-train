@@ -88,8 +88,16 @@ export async function GET(req: NextRequest) {
         },
         buyer: {
           select: {
+            id: true,
             name: true,
-            email: true
+            email: true,
+            role: true,
+            createdAt: true,
+            settings: {
+              select: {
+                upiId: true
+              }
+            }
           }
         },
         brandManager: {
@@ -107,7 +115,9 @@ export async function GET(req: NextRequest) {
             product: {
               select: {
                 id: true,
-                name: true
+                name: true,
+                dealType: true,
+                campaignType: true
               }
             }
           }

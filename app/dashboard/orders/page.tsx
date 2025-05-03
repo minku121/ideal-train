@@ -1,17 +1,21 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
 import { Loader } from "@/components/ui/loader";
 import Image from "next/image";
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, Info } from "lucide-react";
+import { OrderDetailsDialog } from "@/app/components";
 
 type Product = {
   id: number;
   name: string;
+  dealType: string;
+  campaignType: string;
 };
 
 type OrderProduct = {
@@ -29,8 +33,24 @@ type Order = {
   dateOfOrder: string;
   createdAt: string;
   orderProofStatus: string;
+  exchangeNotes?: string;
+  upiId?: string;
   brand: { name: string };
-  brandManager: { user: { name: string } };
+  buyer: { 
+    name: string; 
+    email: string;
+    role?: string;
+    createdAt?: string;
+    settings?: {
+      upiId?: string;
+    } 
+  };
+  brandManager: { 
+    user: { 
+      name: string; 
+      email: string 
+    } 
+  };
   orderProducts: OrderProduct[];
   orderScreenshots: OrderScreenshot[];
 };
@@ -44,6 +64,7 @@ type PaginationInfo = {
 
 export default function OrdersPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +75,7 @@ export default function OrdersPage() {
     totalPages: 0,
   });
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [viewOrderDetails, setViewOrderDetails] = useState<Order | null>(null);
 
   useEffect(() => {
     const storedTheme = localStorage.getItem("theme");
@@ -61,14 +83,15 @@ export default function OrdersPage() {
       setTheme(storedTheme as "light" | "dark");
     }
 
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    if (!user || user.role !== "BUYER") {
+    if (status === "loading") return;
+    
+    if (!session?.user || session.user.role !== "BUYER") {
       router.replace("/dashboard");
       return;
     }
 
     fetchOrders(pagination.page, pagination.limit);
-  }, [router, pagination.page, pagination.limit, theme]);
+  }, [router, pagination.page, pagination.limit, theme, session, status]);
 
   useEffect(() => {
     document.body.className = theme === "dark" ? "dark" : "light";
@@ -117,6 +140,10 @@ export default function OrdersPage() {
   // Helper to find screenshot for a specific product
   const getScreenshotForProduct = (order: Order, productId: number) => {
     return order.orderScreenshots.find(screenshot => screenshot.productId === productId)?.screenshotUrl;
+  };
+
+  const handleViewDetails = (order: Order) => {
+    setViewOrderDetails(order);
   };
 
   if (loading && orders.length === 0) {
@@ -250,6 +277,17 @@ export default function OrdersPage() {
                     >
                       {order.orderProofStatus}
                     </span>
+                    <div className="mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center space-x-1"
+                        onClick={() => handleViewDetails(order)}
+                      >
+                        <Info className="h-4 w-4" />
+                        <span>Details</span>
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -268,34 +306,35 @@ export default function OrdersPage() {
                 )}{" "}
                 of {pagination.total} orders
               </div>
-              <div className="flex space-x-2">
-                <button
+              <div className="space-x-2">
+                <Button
+                  variant="outline"
                   onClick={() => handlePageChange(pagination.page - 1)}
                   disabled={pagination.page === 1}
-                  className={`px-4 py-1.5 text-sm font-medium rounded-lg transition ${
-                    pagination.page === 1
-                      ? "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-700"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
-                  }`}
+                  size="sm"
                 >
                   Previous
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={() => handlePageChange(pagination.page + 1)}
                   disabled={pagination.page === pagination.totalPages}
-                  className={`px-4 py-1.5 text-sm font-medium rounded-lg transition ${
-                    pagination.page === pagination.totalPages
-                      ? "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-700"
-                      : "bg-blue-600 text-white hover:bg-blue-700"
-                  }`}
+                  size="sm"
                 >
                   Next
-                </button>
+                </Button>
               </div>
             </div>
           )}
         </motion.div>
       )}
+
+      {/* Order details dialog */}
+      <OrderDetailsDialog 
+        order={viewOrderDetails} 
+        open={!!viewOrderDetails} 
+        onOpenChange={(open: boolean) => !open && setViewOrderDetails(null)} 
+      />
     </div>
   );
 }

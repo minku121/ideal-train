@@ -35,7 +35,22 @@ export async function GET(req: NextRequest) {
           select: {
             user: {
               select: {
-                name: true
+                name: true,
+                email: true
+              }
+            }
+          }
+        },
+        buyer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            createdAt: true,
+            settings: {
+              select: {
+                upiId: true
               }
             }
           }
@@ -44,8 +59,11 @@ export async function GET(req: NextRequest) {
           include: {
             product: {
               select: {
+                id: true,
                 name: true,
-                id: true
+                dealType: true,
+                campaignType: true,
+                commission: true
               }
             }
           }

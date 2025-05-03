@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useSession } from "next-auth/react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -111,6 +112,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 
 export default function AddOrderPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [submitted, setSubmitted] = useState(false);
   const [orderProofTab, setOrderProofTab] = useState("pending");
   const [brands, setBrands] = useState<{ id: number; name: string }[]>([]);
@@ -129,11 +131,12 @@ export default function AddOrderPage() {
   const [overallProgress, setOverallProgress] = useState(0);
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("user") || '{}');
-    if (!user || user.role !== "BUYER") {
+    if (status === "loading") return;
+    
+    if (!session?.user || session.user.role !== "BUYER") {
       router.replace("/dashboard");
     }
-  }, [router]);
+  }, [router, session, status]);
 
   // Fetch brands from API
   useEffect(() => {
@@ -282,8 +285,7 @@ export default function AddOrderPage() {
     
     try {
       // Check user authentication
-      const user = JSON.parse(localStorage.getItem("user") || '{}');
-      if (!user || !user.id) {
+      if (!session?.user || !session.user.id) {
         setError("User not authenticated");
         setSubmitting(false);
         return;

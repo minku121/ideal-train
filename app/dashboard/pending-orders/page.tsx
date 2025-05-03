@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { Loader } from "@/components/ui/loader";
 import { format } from "date-fns";
@@ -37,20 +38,22 @@ type Order = {
 
 export default function PendingOrdersPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [loading, setLoading] = useState(true);
   const [pendingOrders, setPendingOrders] = useState<Order[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchPendingOrders() {
+      if (status === "loading") return;
+      
+      if (!session?.user || session.user.role !== "BUYER") {
+        router.replace("/dashboard");
+        return;
+      }
+      
       setLoading(true);
       try {
-        const userObj = JSON.parse(localStorage.getItem("user") || '{}');
-        if (!userObj || userObj.role !== "BUYER") {
-          router.replace("/dashboard");
-          return;
-        }
-        
         // Fetch orders with SUBMITTED status
         const response = await fetch('/api/buyer/my-orders');
         
@@ -74,7 +77,7 @@ export default function PendingOrdersPage() {
     }
     
     fetchPendingOrders();
-  }, [router]);
+  }, [router, session, status]);
 
   // Helper to find screenshot for a specific product
   const getScreenshotForProduct = (order: Order, productId: number) => {

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { Filter, Plus, Package, ShoppingCart } from "lucide-react";
+import { Filter, Plus, Package, ShoppingCart, Edit, Trash } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 
@@ -54,6 +54,12 @@ type FilterOptions = {
   managerId?: string;
 };
 
+type Brand = {
+  id: number;
+  name: string;
+  createdAt: string;
+};
+
 export default function AdminProductsPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
@@ -67,11 +73,16 @@ export default function AdminProductsPage() {
     totalPages: 0,
   });
   const [filters, setFilters] = useState<FilterOptions>({});
-  const [brands, setBrands] = useState<{id: number, name: string}[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [mediators, setMediators] = useState<{id: number, name: string}[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [showAddProductDialog, setShowAddProductDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showBrandDialog, setShowBrandDialog] = useState(false);
+  const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
+  const [newBrand, setNewBrand] = useState({
+    name: "",
+  });
   
   // New product form state
   const [newProduct, setNewProduct] = useState({
@@ -181,7 +192,7 @@ export default function AdminProductsPage() {
   };
 
   const handleFilterChange = (key: string, value: string) => {
-    if (value === "") {
+    if (value === "ALL") {
       const newFilters = { ...filters };
       delete newFilters[key as keyof FilterOptions];
       setFilters(newFilters);
@@ -251,6 +262,127 @@ export default function AdminProductsPage() {
     }
   };
 
+  const handleNewBrandChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setNewBrand(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleAddBrand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      const response = await fetch('/api/admin/brands', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: newBrand.name
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to add brand");
+      }
+      
+      const result = await response.json();
+      
+      // Add new brand to the list
+      setBrands(prev => [...prev, result.brand]);
+      
+      // Reset form
+      setNewBrand({
+        name: ""
+      });
+      
+      setShowBrandDialog(false);
+      toast.success("Brand added successfully");
+      
+    } catch (error: any) {
+      toast.error(`Failed to add brand: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const handleEditBrand = (brand: Brand) => {
+    setEditingBrand(brand);
+    setNewBrand({ name: brand.name });
+    setShowBrandDialog(true);
+  };
+  
+  const handleUpdateBrand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBrand) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      const response = await fetch(`/api/admin/brands/${editingBrand.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: newBrand.name
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update brand");
+      }
+      
+      const result = await response.json();
+      
+      // Update brand in the list
+      setBrands(prev => prev.map(brand => 
+        brand.id === editingBrand.id ? { ...brand, name: newBrand.name } : brand
+      ));
+      
+      // Reset form
+      setNewBrand({
+        name: ""
+      });
+      
+      setShowBrandDialog(false);
+      setEditingBrand(null);
+      toast.success("Brand updated successfully");
+      
+    } catch (error: any) {
+      toast.error(`Failed to update brand: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const handleDeleteBrand = async (brandId: number) => {
+    if (!confirm("Are you sure you want to delete this brand? This will also remove all associated products.")) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/admin/brands/${brandId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete brand");
+      }
+      
+      // Remove brand from the list
+      setBrands(prev => prev.filter(brand => brand.id !== brandId));
+      
+      toast.success("Brand deleted successfully");
+      
+    } catch (error: any) {
+      toast.error(`Failed to delete brand: ${error.message}`);
+    }
+  };
+
   if (loading && products.length === 0) {
     return (
       <div className="p-6">
@@ -278,6 +410,90 @@ export default function AdminProductsPage() {
             Filters
           </Button>
           
+          <Dialog open={showBrandDialog} onOpenChange={(open) => {
+            setShowBrandDialog(open);
+            if (!open) setEditingBrand(null);
+          }}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Manage Brands
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[450px]">
+              <DialogHeader>
+                <DialogTitle>{editingBrand ? 'Edit Brand' : 'Add New Brand'}</DialogTitle>
+                <DialogDescription>
+                  {editingBrand ? 'Update brand information.' : 'Add a new brand to the system.'}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <form onSubmit={editingBrand ? handleUpdateBrand : handleAddBrand} className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="brandName">Brand Name*</Label>
+                  <Input 
+                    id="brandName"
+                    name="name"
+                    placeholder="Enter brand name"
+                    value={newBrand.name}
+                    onChange={handleNewBrandChange}
+                    required
+                  />
+                </div>
+                
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => {
+                    setShowBrandDialog(false);
+                    setEditingBrand(null);
+                  }}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader size="sm" className="mr-2" /> : editingBrand ? <Edit className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                    {editingBrand ? 'Update Brand' : 'Add Brand'}
+                  </Button>
+                </DialogFooter>
+              </form>
+              
+              {!editingBrand && (
+                <>
+                  <div className="my-4">
+                    <h3 className="text-sm font-medium">Existing Brands</h3>
+                    <div className="mt-2 max-h-[200px] overflow-y-auto">
+                      {brands.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No brands yet. Add one above.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {brands.map(brand => (
+                            <div key={brand.id} className="flex items-center justify-between p-2 bg-muted rounded-md">
+                              <span>{brand.name}</span>
+                              <div className="flex gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => handleEditBrand(brand)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => handleDeleteBrand(brand.id)}
+                                >
+                                  <Trash className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
+          
           <Dialog open={showAddProductDialog} onOpenChange={setShowAddProductDialog}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
@@ -294,7 +510,7 @@ export default function AdminProductsPage() {
               </DialogHeader>
               
               <form onSubmit={handleAddProduct} className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Product Name*</Label>
                     <Input 
@@ -349,46 +565,11 @@ export default function AdminProductsPage() {
                     </Select>
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label htmlFor="dealType">Deal Type*</Label>
-                    <Select 
-                      name="dealType" 
-                      value={newProduct.dealType} 
-                      onValueChange={(value) => setNewProduct(prev => ({ ...prev, dealType: value }))}
-                      required
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ORIGINAL">ORIGINAL</SelectItem>
-                        <SelectItem value="EMPTY">EMPTY</SelectItem>
-                        <SelectItem value="EXCHANGE">EXCHANGE</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <input type="hidden" name="dealType" value="ORIGINAL" />
+                  <input type="hidden" name="campaignType" value="RATING_DEAL" />
                   
                   <div className="space-y-2">
-                    <Label htmlFor="campaignType">Campaign Type*</Label>
-                    <Select 
-                      name="campaignType" 
-                      value={newProduct.campaignType} 
-                      onValueChange={(value) => setNewProduct(prev => ({ ...prev, campaignType: value }))}
-                      required
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="RATING_DEAL">RATING_DEAL</SelectItem>
-                        <SelectItem value="REVIEW_DEAL">REVIEW_DEAL</SelectItem>
-                        <SelectItem value="ORDER_ONLY_DEAL">ORDER_ONLY_DEAL</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="commission">Commission Amount</Label>
+                    <Label htmlFor="commission">Commission Amount (Optional)</Label>
                     <Input 
                       id="commission"
                       name="commission"
@@ -399,18 +580,6 @@ export default function AdminProductsPage() {
                       onChange={handleNewProductChange}
                     />
                   </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="exchangeNotes">Exchange Notes</Label>
-                  <Textarea 
-                    id="exchangeNotes"
-                    name="exchangeNotes"
-                    placeholder="Optional notes for exchange products"
-                    value={newProduct.exchangeNotes}
-                    onChange={handleNewProductChange}
-                    rows={3}
-                  />
                 </div>
                 
                 <DialogFooter>
@@ -445,7 +614,7 @@ export default function AdminProductsPage() {
                     <SelectValue placeholder="All Brands" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Brands</SelectItem>
+                    <SelectItem value="ALL">All Brands</SelectItem>
                     {brands.map(brand => (
                       <SelectItem key={brand.id} value={brand.id.toString()}>
                         {brand.name}
@@ -465,7 +634,7 @@ export default function AdminProductsPage() {
                     <SelectValue placeholder="All Mediators" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Mediators</SelectItem>
+                    <SelectItem value="ALL">All Mediators</SelectItem>
                     {mediators.map(mediator => (
                       <SelectItem key={mediator.id} value={mediator.id.toString()}>
                         {mediator.name}

@@ -8,6 +8,7 @@ generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
   output        = "../node_modules/.prisma/client"
+  previewFeatures = []
 }
 
 datasource db {
@@ -37,6 +38,63 @@ model User {
   // Relationships
   brandManagers BrandManager[] // One-to-many relationship with BrandManager
   buyerOrders   Order[]        @relation("BuyerOrders")
+  
+  // User settings - one-to-one relationship
+  settings      UserSettings?
+}
+
+// User Settings model
+model UserSettings {
+  id                      Int      @id @default(autoincrement())
+  userId                  Int      @unique
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Common settings
+  darkMode                Boolean  @default(false)
+  emailNotifications      Boolean  @default(true)
+  language                String   @default("en")
+  showProfile             Boolean  @default(true)
+  showEmail               Boolean  @default(false)
+  primaryColor            String   @default("#7C3AED")
+  
+  // Buyer-specific settings
+  upiId                   String?  // UPI ID for payments (optional)
+  showOrderHistory        Boolean  @default(true)
+  defaultPaymentMethod    String?  // Payment method preference
+  orderStatusNotifications Boolean  @default(true)
+  
+  // Mediator-specific settings
+  disputeNotifications    Boolean  @default(true)
+  autoAssignDisputes      Boolean  @default(false)
+  disputeResponseTime     String?  // Response time preference (e.g., "24h")
+  mediatorBio             String?  @db.Text // Mediator description
+  
+  // Admin-specific settings
+  adminDashboardView      String?  // Default dashboard view
+  enableAdvancedFeatures  Boolean  @default(false)
+  logsRetentionDays       Int?     // How long to keep logs
+  systemAlerts            Boolean  @default(true)
+  
+  // Additional settings as JSON
+  additionalSettings      Json?    // For extensibility
+  
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+// Application logs for system monitoring and debugging
+model AppLog {
+  id        Int      @id @default(autoincrement())
+  level     LogLevel @default(INFO)
+  message   String   @db.Text
+  source    String?  // Which part of the application generated this log
+  userId    Int?     // Optional user ID if the log is related to a user action
+  metadata  Json?    // Additional structured data related to the log
+  createdAt DateTime @default(now())
+  
+  @@index([level])
+  @@index([source])
+  @@index([createdAt])
 }
 
 // Explicit join model for Brand and Manager relationship
@@ -83,6 +141,9 @@ model Order {
   commission       Float? // Optional commission amount
   exchangeNotes    String? // Notes for exchange orders
   orderProofStatus OrderProofStatus @default(SUBMITTED)
+  
+  // Only store UPI ID for payment
+  upiId            String?  // UPI ID used for this order
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -169,4 +230,12 @@ enum OrderProofStatus {
   SUBMITTED
   APPROVED
   REJECTED
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
 }

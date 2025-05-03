@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart3, Home, LayoutDashboard, LogOut, Package, Settings, ShoppingCart, Users } from "lucide-react";
+import { BarChart3, Home, LayoutDashboard, LogOut, Package, Settings, ShoppingCart, Users, AlarmClock } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import { DashboardAuthGuard } from "@/components/DashboardAuthGuard";
 
@@ -110,7 +110,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                               <SidebarMenuButton asChild isActive={pathname === "/dashboard/products"}>
                                 <a href="/dashboard/products">
                                   <Package />
-                                  <span>Products</span>
+                                  <span>My Products</span>
                                 </a>
                               </SidebarMenuButton>
                             </SidebarMenuItem>
@@ -169,6 +169,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                 <a href="/dashboard/admin/mediators">
                                   <Users />
                                   <span>Mediators</span>
+                                </a>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                              <SidebarMenuButton asChild isActive={pathname.includes("/dashboard/admin/logs")}>
+                                <a href="/dashboard/admin/logs">
+                                  <AlarmClock />
+                                  <span>Logs</span>
                                 </a>
                               </SidebarMenuButton>
                             </SidebarMenuItem>
